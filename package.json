@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "gitignore": "^0.7.0",
+    "supabase": "^2.70.5",
     "uuid": "^13.0.0"
   }
 }
