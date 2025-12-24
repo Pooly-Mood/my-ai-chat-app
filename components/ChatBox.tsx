@@ -1,116 +1,73 @@
-'use client';
+import { NextRequest, NextResponse } from 'next/server';
+import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
+import { v4 as uuidv4 } from 'uuid';
 
-import { useState, useRef, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-interface ChatBoxProps {
-  isOpen: boolean;
-  onClose: () => void;
-  showWelcome: boolean;
-}
+export async function POST(request: NextRequest) {
+  try {
+    // 🔍 DEBUG: Log raw body
+    const rawBody = await request.text();
+    console.log('📥 RAW BODY:', rawBody);
+    
+    const body = JSON.parse(rawBody);
+    console.log('📦 PARSED BODY:', body);
+    
+    const { message, history = [], clientId = 'anonymous', sessionId } = body;
 
-export default function ChatBox({ isOpen, onClose, showWelcome }: ChatBoxProps) {
-  const [messages, setMessages] = useState<{ text: string; sender: 'user' | 'ai' }[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  const supabase = createClientComponentClient();
-
-  useEffect(() => {
-    if (isOpen && showWelcome) {
-      setMessages([{ text: "Ciao! Sono PoolyAI, come posso aiutarti oggi? 😊", sender: 'ai' as const }]);
+    if (!message) {
+      return NextResponse.json({ error: 'No message' }, { status: 400 });
     }
-  }, [isOpen, showWelcome]);
 
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages]);
+    // Session ID
+    const currentSessionId = sessionId || uuidv4();
+    
+    // Supabase memory (semplificato per test)
+    let conversationMessages: any[] = [];
+    
+    // OpenAI con catalogo Pooly
+    const messagesForAI = [
+      {
+        role: "system",
+        content: `Sei PoolyAI ufficiale Pooly's Mood (espositori vino/liquori). 
+        CATALOGO: 1.Art Wall 2.Wall Bar 3.Scaffal 4.Cantinetta 5.Concept Capricci 6.Carrello 7.Arredi 8.Allestimenti
+        Contatti: pooly.s_mood@outlook.com | +39 123 456 789`
+      },
+      ...conversationMessages.slice(-10),
+      { role: "user", content: message }
+    ];
 
-  async function sendMessage() {
-    if (!inputValue.trim() || loading) return;
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: messagesForAI,
+    });
 
-    const userMessage = { text: inputValue, sender: 'user' as const };
-    setMessages(prev => [...prev, userMessage]);
-    const tempInput = inputValue;
-    setInputValue('');
-    setLoading(true);
+    const aiReply = response.choices[0].message?.content || 'Errore AI';
 
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: tempInput,
-          history: messages,
-          clientId: getClientId()
-        })
-      });
+    // Salva Supabase (opzionale per ora)
+    await supabase.from('conversations').upsert({
+      client_id: clientId,
+      session_id: currentSessionId,
+      messages: [{ role: 'user', content: message }, { role: 'assistant', content: aiReply }]
+    }).match(console.error);
 
-      const data = await response.json();
-      if (data.reply) {
-        setMessages(prev => [...prev, { text: data.reply, sender: 'ai' as const }]);
-      }
-    } catch (error) {
-      setMessages(prev => [...prev, { text: 'Ops! Problema di connessione. Riprova fra un attimo.', sender: 'ai' as const }]);
-    } finally {
-      setLoading(false);
-    }
+    console.log('✅ Reply inviata:', aiReply.substring(0, 50));
+
+    return NextResponse.json({
+      reply: aiReply,
+      sessionId: currentSessionId
+    });
+
+  } catch (error: any) {
+    console.error('💥 API ERROR:', error);
+    return NextResponse.json(
+      { reply: 'Ops! Server momentaneamente indisponibile.', error: error.message },
+      { status: 500 }
+    );
   }
-
-  function getClientId() {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get("clientId") || "anonymous";
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <>
-      <div className="messages" id="messages">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`message ${msg.sender}`}>
-            {msg.text}
-          </div>
-        ))}
-        {loading && (
-          <div className="message ai p-3">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-              <span>PoolyAI sta pensando...</span>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="input-area">
-        <textarea
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Digita il tuo messaggio..."
-          className="user-input"
-          rows={1}
-          disabled={loading}
-        />
-        <button
-          onClick={sendMessage}
-          disabled={loading || !inputValue.trim()}
-          className="send-btn"
-        >
-          {loading ? '⏳' : 'Invia'}
-        </button>
-      </div>
-    </>
-  );
 }
