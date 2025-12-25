@@ -1,4 +1,10 @@
+
 'use client';
+
+import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
+import { v4 as uuidv4 } from 'uuid';
+ 
 
 import { useState, useRef, useEffect } from 'react';
 
@@ -59,7 +65,6 @@ export default function ChatBox({ isOpen, showWelcome }: ChatBoxProps) {
       setLoading(false);
     }
   }
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
