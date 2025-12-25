@@ -4,31 +4,35 @@
 
 @layer base {
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { 
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     @apply bg-gray-900 text-white;
   }
 }
 
 /* PoolyAI Chat Button */
 .chat-button {
-  @apply fixed bottom-4 right-4 w-16 h-16 rounded-full flex items-center justify-center font-semibold text-sm cursor-pointer shadow-2xl z-[10000] transition-all border-none select-none;
+  @apply fixed bottom-4 right-4 w-16 h-16 rounded-full flex items-center justify-center font-semibold text-sm cursor-pointer z-[10000] transition-all select-none;
   background: linear-gradient(135deg, #8B4513 0%, #A0522D 50%, #CD853F 100%);
   box-shadow: 0 8px 25px rgba(139, 69, 19, 0.4);
 }
-.chat-button:hover { 
-  @apply scale-105 shadow-3xl;
+.chat-button:hover {
+  @apply scale-105;
   box-shadow: 0 12px 35px rgba(139, 69, 19, 0.5);
 }
 
 /* Chat Panel */
 .chat-panel {
-  @apply fixed right-4 w-[380px] max-w-[90vw] max-h-[90vh] rounded-t-3xl shadow-2xl z-[9999] transition-all overflow-hidden backdrop-blur-xl;
-  bottom: -128; background: rgb(247, 141, 141);
+  @apply fixed right-4 w-[380px] max-w-[90vw] max-h-[90vh] overflow-hidden backdrop-blur-xl z-[9999] transition-all;
+  bottom: -128px;
+  background: rgb(247, 141, 141);
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -10px 50px rgba(0,0,0,0.2);
 }
-.chat-panel.open { @apply bottom-4; }
+.chat-panel.open {
+  @apply bottom-4;
+}
 
 /* Mobile */
 @media (max-width: 480px) {
@@ -39,20 +43,24 @@
 
 /* Header */
 .chat-header {
-  @apply p-5 font-semibold text-base text-center relative;
+  @apply p-5 font-semibold text-base text-center;
   background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%);
 }
 
 /* Messages */
 .messages {
-  @apply h-80 overflow-y-auto p-5 flex flex-col gap-4 bg-[#6b4d4d];
+  @apply h-80 overflow-y-auto p-5 flex flex-col gap-4;
+  background-color: #6b4d4d;
 }
+
 .message {
-  @apply max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed animate-fadeInUp break-words;
+  @apply max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed break-words animate-fadeInUp;
 }
-.message.me {
-  @apply self-end bg-gradient-to-r from-indigo-500 to-purple-600 text-[#cf8787] rounded-br-sm;
+
+.message.user {
+  @apply self-end bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-br-sm;
 }
+
 .message.ai {
   @apply self-start bg-gray-100 text-gray-800 rounded-bl-sm;
 }
@@ -61,28 +69,40 @@
 .input-area {
   @apply p-5 bg-white border-t border-gray-200 flex gap-2 items-end;
 }
+
 .user-input {
   @apply flex-1 p-3 border-2 border-gray-200 rounded-3xl text-sm outline-none resize-none max-h-24 min-h-12 leading-relaxed transition-colors;
 }
-.user-input:focus { @apply border-[#8B4513]; }
+
+.user-input:focus {
+  border-color: #8B4513;
+}
+
 .send-btn {
-  @apply w-12 h-12 border-none rounded-full flex items-center justify-center text-lg transition-all;
+  @apply w-12 h-12 rounded-full flex items-center justify-center text-sm transition-all text-white;
   background: linear-gradient(135deg, #470b13, #A0522D);
 }
-.send-btn:hover:not(:disabled) { @apply scale-105; }
-.send-btn:disabled { @apply opacity-50 cursor-not-allowed; }
+.send-btn:hover:not(:disabled) {
+  @apply scale-105;
+}
+.send-btn:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
 
 /* Animazioni */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-fadeInUp { animation: fadeInUp 0.3s ease; }
+.animate-fadeInUp {
+  animation: fadeInUp 0.3s ease;
+}
 
 /* Scrollbar */
-.messages::-webkit-scrollbar { width: 4px; }
-.messages::-webkit-scrollbar-track { @apply bg-transparent; }
-.messages::-webkit-scrollbar-thumb { 
-  background: rgba(139, 69, 19, 0.3); 
-  @apply rounded-full;
+.messages::-webkit-scrollbar {
+  width: 4px;
+}
+.messages::-webkit-scrollbar-thumb {
+  background: rgba(139, 69, 19, 0.3);
+  border-radius: 9999px;
 }

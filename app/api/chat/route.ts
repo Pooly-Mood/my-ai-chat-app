@@ -1,100 +1,168 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { supabase } from '@/lib/supabase';
-import { v4 as uuidv4 } from 'uuid';
+import { createClient } from '@supabase/supabase-js';
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
+  apiKey: process.env.OPENAI_API_KEY
 });
 
-export async function POST(request: NextRequest) {
+// ⚠️ SERVICE ROLE solo lato server
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function POST(req: Request) {
   try {
-    const { message, history = [], clientId, sessionId } = await request.json();
+    const { message, history = [], clientId = 'anonymous' } = await req.json();
 
-    // Genera/mantiene session ID
-    let currentSessionId = sessionId || uuidv4();
-    
-    // Carica memoria esistente
-    let conversation = { messages: [] as any[] };
-    if (currentSessionId) {
-      const { data } = await supabase
-        .from('conversations')
-        .select('messages')
-        .eq('session_id', currentSessionId)
-        .eq('client_id', clientId)
-        .single();
-      
-      if (data?.messages) {
-        conversation.messages = data.messages;
-      }
-    }
+    /* -----------------------------
+       1. Salva messaggio utente
+    --------------------------------*/
+    await saveMessage({
+      sessionId: clientId,
+      role: 'user',
+      content: message
+    });
 
-    // Prepara messaggi per OpenAI (usa tua memoria!)
-    const messagesForAI = [
-      {
-        role: "system",
-        content: `Sei PoolyAI, assistente ufficiale Pooly's Mood (espositori vino/liquori legno+acciaio inox). 
-        CATALOGO UFFICIALE:
-        1. Art Wall (180x120x30cm, 24 bott)
-        2. Vetrina Wall Bar
-        3. Scaffal/Saffal (150x80x35cm, 30 bott)
-        4. Cantinetta Cut Art
-        5. Concept Capricci (120x60x40cm, 20 bott)
-        6. Carrello Banchetti
-        7. Arredi
-        8. Allestimenti Pooly's Mood
-        
-        Stile: diretto, professionale, concreto. Chiedi: locale, spazio, prodotto, budget, obiettivo.
-        Contatti: pooly.s_mood@outlook.com | +39 123 456 789
-        MEMORIA conversazioni passate: ${JSON.stringify(conversation.messages.slice(-20))}`
-      },
-      ...conversation.messages.slice(-20), // Ultimi 20 msg
-      { role: "user", content: message }
+    /* -----------------------------
+       2. Embedding messaggio
+    --------------------------------*/
+    const embeddingResponse = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: message
+    });
+
+    const embedding = embeddingResponse.data[0].embedding;
+
+    /* -----------------------------
+       3. Memoria semantica
+    --------------------------------*/
+    const semanticMemory = await semanticSearch({
+      embedding,
+      threshold: 0.78,
+      count: 5
+    });
+
+    /* -----------------------------
+       4. Ultima memoria cronologica
+    --------------------------------*/
+    const recentMemory = await loadSessionMemory(clientId, 10);
+
+    /* -----------------------------
+       5. Prompt finale
+    --------------------------------*/
+    const systemPrompt = `
+Sei PoolyAI.
+Stile: Arte Mood.
+Tono: caldo, diretto, tecnico quando serve.
+Materiali ammessi: solo legno naturale e acciaio inox.
+Risposte concrete, niente fuffa.
+`;
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+
+      ...(semanticMemory?.length
+        ? [{
+            role: 'system',
+            content: `MEMORIA RILEVANTE:\n${semanticMemory
+              .map((m: any) => `- ${m.content}`)
+              .join('\n')}`
+          }]
+        : []),
+
+      ...recentMemory.map((m: any) => ({
+        role: m.role,
+        content: m.content
+      })),
+
+      { role: 'user', content: message }
     ];
 
-    // Chiama OpenAI
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: messagesForAI,
-      max_tokens: 500,
-      temperature: 0.7,
+    /* -----------------------------
+       6. OpenAI chat
+    --------------------------------*/
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      messages,
+      temperature: 0.6
     });
 
-    const aiReply = response.choices[0].message.content || "Mi dispiace, non ho capito.";
+    const reply = completion.choices[0].message.content;
 
-    // Salva in Supabase
-    const newMessage = {
-      role: "user",
-      content: message,
-      timestamp: new Date().toISOString()
-    };
-    const aiMessage = {
-      role: "assistant",
-      content: aiReply,
-      timestamp: new Date().toISOString()
-    };
-
-    // Crea/aggiorna conversazione
-    const { error } = await supabase
-      .from('conversations')
-      .upsert({
-        client_id: clientId,
-        session_id: currentSessionId,
-        messages: [...conversation.messages, newMessage, aiMessage].slice(-100) // Max 100 msg
-      }, { onConflict: 'session_id,client_id' });
-
-    if (error) console.error('Supabase error:', error);
-
-    return NextResponse.json({
-      reply: aiReply,
-      sessionId: currentSessionId
+    /* -----------------------------
+       7. Salva risposta AI
+    --------------------------------*/
+    await saveMessage({
+      sessionId: clientId,
+      role: 'ai',
+      content: 'reply'
     });
+
+    return NextResponse.json({ reply });
 
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('❌ Chat API error:', error);
     return NextResponse.json(
-      { reply: "Ops! Problema tecnico. Riprova fra un secondo." },
+      { reply: 'Errore interno. Riprova.' },
       { status: 500 }
     );
   }
+}
+
+/* =====================================================
+   SUPABASE MEMORY HELPERS
+===================================================== */
+
+async function saveMessage({
+  sessionId,
+  role,
+  content,
+  embedding = null
+}: {
+  sessionId: string;
+  role: 'user' | 'ai' | 'system';
+  content: string;
+  embedding?: number[] | null;
+}) {
+  const { error } = await supabase.from('memory').insert({
+    session_id: sessionId,
+    role,
+    content,
+    embedding
+  });
+
+  if (error) throw error;
+}
+
+async function loadSessionMemory(sessionId: string, limit = 10) {
+  const { data, error } = await supabase
+    .from('memory')
+    .select('role, content')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function semanticSearch({
+  embedding,
+  threshold,
+  count
+}: {
+  embedding: number[];
+  threshold: number;
+  count: number;
+}) {
+  const { data, error } = await supabase.rpc('match_memory', {
+    query_embedding: embedding,
+    match_threshold: threshold,
+    match_count: count
+  });
+
+  if (error) throw error;
+  return data || [];
 }
