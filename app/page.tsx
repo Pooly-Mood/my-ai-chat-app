@@ -9,7 +9,7 @@ export default function Home() {
   {
   // ... il tuo codice esistente
 
-  return (
+  return (        
     <main className="min-h-screen ...">
       {/* AGGIUNGI QUESTO IN ALTO PER TEST */}
       <div className="p-10 text-center">
