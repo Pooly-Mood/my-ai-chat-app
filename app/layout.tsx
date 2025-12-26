@@ -1,20 +1,20 @@
+// app/layout.tsx
+import type { Metadata } from 'next';
 import './globals.css';
 
-export const metadata = {
-  title: 'Pooly’s Mood',
-  description: 'Design & AI Experience'
+export const metadata: Metadata = {
+  title: 'PoolyAI - Assistente Pooly\'s Mood',
+  description: 'Chat ufficiale Pooly\'s Mood',
 };
 
 export default function RootLayout({
-  children
+  children,
 }: {
   children: React.ReactNode;
 }) {
   return (
     <html lang="it">
-      <body className="bg-gray-900 text-white antialiased">
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
-}
+  }
