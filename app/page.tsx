@@ -1,4 +1,4 @@
-// app/page.tsx
+'use client';
 import ChatBox from '@/components/ChatBox';
 import { useState } from 'react';
 
