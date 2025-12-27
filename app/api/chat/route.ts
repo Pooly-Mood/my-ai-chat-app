@@ -16,12 +16,12 @@ const openai = new OpenAI({
 });
 
 // ====== ROUTE ======
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
     console.log("🔥 API CHAT HIT");
 
     // ====== BODY ======
-    const body = await req.json();
+    const body = await request.json();
     console.log("BODY:", body);
 
     const {
