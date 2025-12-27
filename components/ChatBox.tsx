@@ -19,6 +19,7 @@ export default function ChatBox({ isOpen, onClose, showWelcome }: ChatBoxProps) 
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const response =await fetch (API_URL)
 
   // Recupera o genera sessionId persistente
   useEffect(() => {
@@ -61,7 +62,7 @@ export default function ChatBox({ isOpen, onClose, showWelcome }: ChatBoxProps) 
     setLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('API_URL', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
